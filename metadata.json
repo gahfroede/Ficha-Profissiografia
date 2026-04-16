@@ -1,0 +1,6 @@
+{
+  "name": "Assistente de Nexo Causal Ocupacional",
+  "description": "Assistente especializado em entrevistas ocupacionais e análise de nexo causal em saúde do trabalhador. Extrai informações de transcrições de áudio para preencher fichas de entrevista.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}
