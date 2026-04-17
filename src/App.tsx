@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { 
   Mic, 
   MicOff, 
@@ -20,7 +22,8 @@ import {
   Trash2,
   Copy,
   Check,
-  Scale
+  Scale,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -200,13 +203,58 @@ Nexo de Causalidade: ${result.nexoCausalidade}`;
     setError(null);
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  const handleExportPDF = async () => {
+    if (!dashboardRef.current) return;
+    
+    setIsExporting(true);
+    try {
+      // Small delay to ensure all transitions are finished
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const canvas = await html2canvas(dashboardRef.current, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        backgroundColor: '#fcfcfc', // match --color-bg-main
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Hide utility elements in the cloned document for the PDF
+          const elementsToHide = clonedDoc.querySelectorAll('[data-pdf-ignore]');
+          elementsToHide.forEach(el => (el as HTMLElement).style.display = 'none');
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [canvas.width / 2, canvas.height / 2] // Adjust format to fit content
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      
+      const fileName = result?.nome 
+        ? `Ficha_Profissiografica_${result.nome.replace(/\s+/g, '_')}.pdf`
+        : 'Ficha_Profissiográfica_Advocacia_Franco.pdf';
+        
+      pdf.save(fileName);
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+      alert("Houve um problema ao gerar o PDF. Tente novamente.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleFieldChange = (field: keyof InterviewData, value: string) => {
     if (!result) return;
     setResult({ ...result, [field]: value });
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg-main">
+    <div className="min-h-screen flex flex-col bg-bg-main" ref={dashboardRef}>
       {/* Header */}
       <header className="bg-primary text-white px-10 py-6 flex items-center justify-between border-b border-accent/20">
         <div className="flex items-center gap-8">
@@ -265,6 +313,7 @@ Nexo de Causalidade: ${result.nexoCausalidade}`;
               {transcription && (
                 <button 
                   onClick={clearAll}
+                  data-pdf-ignore
                   className="absolute top-4 right-4 p-2 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm"
                   title="Limpar tudo"
                 >
@@ -273,7 +322,7 @@ Nexo de Causalidade: ${result.nexoCausalidade}`;
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-2 gap-5" data-pdf-ignore>
               <button
                 onClick={toggleRecording}
                 className={`flex items-center justify-center gap-3 py-3.5 rounded-md text-xs font-bold uppercase tracking-widest transition-all border ${
@@ -318,6 +367,7 @@ Nexo de Causalidade: ${result.nexoCausalidade}`;
             {result && (
               <button 
                 onClick={handleCopy}
+                data-pdf-ignore
                 className="flex items-center gap-2 text-[10px] font-bold bg-primary text-accent hover:bg-black px-5 py-2.5 rounded shadow-sm transition-all uppercase tracking-widest"
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -392,7 +442,7 @@ Nexo de Causalidade: ${result.nexoCausalidade}`;
       </main>
 
       {/* Footer */}
-      <footer className="bg-card-bg px-10 py-6 border-t border-border-main flex justify-end gap-5">
+      <footer className="bg-card-bg px-10 py-6 border-t border-border-main flex justify-end gap-5" data-pdf-ignore>
         <button 
           onClick={clearAll}
           className="px-8 py-3 rounded border border-border-main text-xs font-bold text-text-main hover:bg-bg-main hover:border-accent/30 transition-all uppercase tracking-[0.2em]"
@@ -400,10 +450,12 @@ Nexo de Causalidade: ${result.nexoCausalidade}`;
           Refazer Transcrição
         </button>
         <button 
-          onClick={() => alert('Função de exportação em desenvolvimento.')}
-          className="px-8 py-3 rounded bg-primary text-accent text-xs font-bold hover:bg-black transition-all uppercase tracking-[0.2em] shadow-md"
+          onClick={handleExportPDF}
+          disabled={!result || isExporting}
+          className="flex items-center gap-3 px-8 py-3 rounded bg-primary text-accent text-xs font-bold hover:bg-black disabled:opacity-50 transition-all uppercase tracking-[0.2em] shadow-md"
         >
-          Exportar PDF Laudo
+          {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          {isExporting ? 'Gerando...' : 'Exportar PDF Laudo'}
         </button>
       </footer>
     </div>
